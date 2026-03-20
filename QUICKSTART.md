@@ -28,12 +28,15 @@ Glass-Box solves the **agent amnesia problem**: agents forget everything between
 Traditional logging is write-only: Agent → Logs → Human reads
 Glass-Box is bidirectional: Agent ↔ Logs ↔ Agent queries
 
+**NEW:** Now includes **LM Studio integration** for 5x faster code generation!
+
 ### Core Capabilities
 
-1. **Hypothesis Tracking** - Remember what you tried and what worked
-2. **Decision Logging** - Remember WHY you made choices
-3. **Session Resumption** - Pick up where you left off
-4. **Pattern Detection** - Learn from failure patterns
+1. **LM Studio Integration** - Fast local AI (2-3s vs 10-15s cloud) ⚡
+2. **Hypothesis Tracking** - Remember what you tried and what worked
+3. **Decision Logging** - Remember WHY you made choices
+4. **Session Resumption** - Pick up where you left off
+5. **Pattern Detection** - Learn from failure patterns
 
 ## Example Usage
 
