@@ -1,0 +1,71 @@
+#!/bin/bash
+# Glass-Box Full Workflow Demo
+# Demonstrates the complete bidirectional memory system
+
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║        GLASS-BOX BIDIRECTIONAL MEMORY DEMO                 ║"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo ""
+
+# Initialize if needed
+mkdir -p ~/.openclaw/workspace/logs
+touch ~/.openclaw/workspace/logs/glass-box-{hypotheses,decisions}.jsonl
+
+echo "📝 SCENARIO: Debugging a Linux kernel boot issue"
+echo ""
+echo "Step 1: Formulate hypothesis"
+echo "  $ glass-box hypothesis \"Kernel entry at 0xc0000000 won't work on GPU\""
+~/.openclaw/workspace/scripts/glass-box hypothesis "Kernel entry at 0xc0000000 won't work on GPU (expects 0x00000000)"
+
+echo ""
+echo "Step 2: Test the hypothesis"
+echo "  $ glass-box test \"Build kernel with entry at 0x00000000\""
+~/.openclaw/workspace/scripts/glass-box test "Build kernel with entry at 0x00000000"
+
+echo ""
+echo "Step 3: Record result"
+echo "  $ glass-box result \"✓ Kernel boots on GPU!\""
+~/.openclaw/workspace/scripts/glass-box result "✓ Kernel boots on GPU!"
+
+echo ""
+echo "Step 4: Record the decision for future reference"
+echo "  $ glass-decision decision \"Always verify kernel entry point matches GPU shader\""
+~/.openclaw/workspace/scripts/glass-decision decision "Always verify kernel entry point matches GPU shader"
+
+echo "  $ glass-reason \"GPU shader expects physical address 0x0, not virtual 0xc0000000\""
+~/.openclaw/workspace/scripts/glass-decision reason "GPU shader expects physical address 0x0, not virtual 0xc0000000"
+
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "📊 QUERYING MEMORY (Bidirectional!)                        "
+echo "════════════════════════════════════════════════════════════"
+echo ""
+
+echo "Query: What did I try for 'kernel'?"
+echo "  $ glass-box query kernel"
+~/.openclaw/workspace/scripts/glass-box query kernel
+
+echo ""
+echo "Query: Why did I decide about 'entry'?"
+echo "  $ glass-decision why entry"
+~/.openclaw/workspace/scripts/glass-decision why entry
+
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "✨ SESSION RESUMPTION                                       "
+echo "════════════════════════════════════════════════════════════"
+echo ""
+echo "Next time you start a session, just run:"
+echo "  $ glass-summary"
+echo ""
+~/.openclaw/workspace/scripts/glass-summary
+
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "💡 KEY INSIGHT                                              "
+echo "════════════════════════════════════════════════════════════"
+echo ""
+echo "Traditional logging:  Agent → Logs → Human reads"
+echo "Glass Box:            Agent ↔ Logs ↔ Agent queries"
+echo ""
+echo "The agent can now LEARN from its own history!"

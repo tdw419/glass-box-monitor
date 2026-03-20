@@ -1,0 +1,36 @@
+#!/bin/bash
+# Glass-Box Decision Log (Simple JSONL)
+# Usage: glass-decision decision "Use X"
+#        glass-reason "Because Y"
+#        glass-why "X"
+
+TYPE="$1"
+shift
+MSG="$*"
+
+LOG=~/.openclaw/workspace/logs/glass-box-decisions.jsonl
+
+case "$TYPE" in
+    decision)
+        # Record a decision
+        echo "{\"ts\":\"$(date -Iseconds)\",\"decision\":\"$MSG\",\"reason\":\"\"}" >> "$LOG"
+        ;;
+    reason)
+        # Attach reason to last decision (create new entry with both)
+        LAST_DEC=$(tail -1 "$LOG" 2>/dev/null | grep -o '"decision":"[^"]*"' | cut -d'"' -f4)
+        if [ -n "$LAST_DEC" ]; then
+            echo "{\"ts\":\"$(date -Iseconds)\",\"decision\":\"$LAST_DEC\",\"reason\":\"$MSG\"}" >> "$LOG"
+        fi
+        ;;
+    why)
+        # Query: "Why did we decide X?"
+        grep -i "$MSG" "$LOG" 2>/dev/null | grep '"reason"' | grep -v '""reason":""' | tail -3
+        ;;
+    list)
+        # Show recent decisions with reasons
+        tail -10 "$LOG" 2>/dev/null
+        ;;
+    *)
+        echo "Usage: glass-decision {decision|reason|why|list} <message>"
+        ;;
+esac

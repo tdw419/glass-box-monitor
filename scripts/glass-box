@@ -1,0 +1,27 @@
+#!/bin/bash
+# Glass-Box Hypothesis Tracker
+# Usage: glass-box hypothesis <prediction>
+#        glass-box test <action>
+#        glass-box result <outcome>
+
+TYPE="$1"
+shift
+MSG="$*"
+
+case "$TYPE" in
+    hypothesis|test|result)
+        echo "{\"ts\":\"$(date -Iseconds)\",\"type\":\"$TYPE\",\"msg\":\"$MSG\"}" >> ~/.openclaw/workspace/logs/glass-box-hypotheses.jsonl
+        ;;
+    query)
+        # Query past hypotheses
+        grep -i "$MSG" ~/.openclaw/workspace/logs/glass-box-hypotheses.jsonl 2>/dev/null | tail -10 | jq -r '"\(.ts | split("T")[1][:5]) [\(.type)] \(.msg)"'
+        ;;
+    summary)
+        # Show last session's key results
+        echo "=== Last Session Summary ==="
+        grep -E "result.*✓|result.*✗|milestone" ~/.openclaw/workspace/logs/glass-box-hypotheses.jsonl 2>/dev/null | tail -5 | jq -r '"\(.ts | split("T")[1][:5]) \(.msg)"'
+        ;;
+    *)
+        echo "Usage: glass-box {hypothesis|test|result|query|summary} <message>"
+        ;;
+esac

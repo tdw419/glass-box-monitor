@@ -1,0 +1,20 @@
+# Logs
+logs/
+*.log
+*.jsonl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+
+# Build
+dist/
+*.skill

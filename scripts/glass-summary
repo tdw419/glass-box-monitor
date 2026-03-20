@@ -1,0 +1,35 @@
+#!/bin/bash
+# Glass-Box Session Summary
+# Generates a summary of the last session for quick resumption
+
+LOG_HYP=~/.openclaw/workspace/logs/glass-box-hypotheses.jsonl
+LOG_DEC=~/.openclaw/workspace/logs/glass-box-decisions.jsonl
+LOG_PROG=~/.openclaw/workspace/logs/progress.jsonl
+
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║          GLASS-BOX SESSION SUMMARY                         ║"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo ""
+
+echo "📊 Recent Milestones:"
+if [ -f "$LOG_PROG" ]; then
+    grep "milestone" "$LOG_PROG" | tail -5 | jq -r '"  ✓ \(.msg)"' 2>/dev/null || grep "milestone" "$LOG_PROG" | tail -5
+fi
+echo ""
+
+echo "🧪 Last Hypotheses:"
+if [ -f "$LOG_HYP" ]; then
+    tail -6 "$LOG_HYP" | jq -r '"  [\(.type)] \(.msg)"' 2>/dev/null || tail -6 "$LOG_HYP"
+fi
+echo ""
+
+echo "🎯 Key Decisions:"
+if [ -f "$LOG_DEC" ]; then
+    grep -v '""reason":""' "$LOG_DEC" | tail -3 | jq -r '"  → \(.decision)\n     Reason: \(.reason)"' 2>/dev/null || grep -v '""reason":""' "$LOG_DEC" | tail -3
+fi
+echo ""
+
+echo "💡 Suggested Next Action:"
+echo "  Based on last session: Continue with Linux boot on GPU"
+echo "  - Kernel loads but no output (entry point mismatch)"
+echo "  - Need to fix kernel entry at 0xc0000000 vs 0x00000000"
