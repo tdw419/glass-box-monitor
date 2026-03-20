@@ -1,0 +1,125 @@
+#!/bin/bash
+# Glass-Box + OpenClaw Integration
+# Extract key insights from OpenClaw sessions and import to Glass-Box memory
+
+SESSIONS_DIR="$HOME/.openclaw/agents/main/sessions"
+GLASS_DIR="$HOME/.openclaw/workspace/logs"
+
+case "$1" in
+    import)
+        # Import recent session insights to Glass-Box
+        echo "📊 Analyzing recent OpenClaw sessions..."
+        
+        # Find sessions from today
+        TODAY=$(date +%Y-%m-%d)
+        RECENT_SESSIONS=$(find "$SESSIONS_DIR" -name "*.jsonl" -mtime -1 ! -name "*.deleted.*" ! -name "*.reset.*" 2>/dev/null | head -10)
+        
+        for session in $RECENT_SESSIONS; do
+            # Extract user messages (role: "user")
+            USER_MSGS=$(jq -r 'select(.role == "user") | .content[0].text // empty' "$session" 2>/dev/null | head -5)
+            
+            if [ -n "$USER_MSGS" ]; then
+                echo "Session: $(basename $session .jsonl)"
+                echo "$USER_MSGS" | head -3
+                echo "---"
+            fi
+        done
+        ;;
+        
+    summary)
+        # Generate summary of recent work
+        echo "╔════════════════════════════════════════════════════════════╗"
+        echo "║        OPENCLAW SESSION HISTORY                            ║"
+        echo "╚════════════════════════════════════════════════════════════╝"
+        echo ""
+        
+        # Count sessions
+        TOTAL=$(find "$SESSIONS_DIR" -name "*.jsonl" ! -name "*.deleted.*" ! -name "*.reset.*" 2>/dev/null | wc -l)
+        TODAY_COUNT=$(find "$SESSIONS_DIR" -name "*.jsonl" -mtime -1 ! -name "*.deleted.*" ! -name "*.reset.*" 2>/dev/null | wc -l)
+        
+        echo "📊 Total sessions: $TOTAL"
+        echo "📊 Today's sessions: $TODAY_COUNT"
+        echo ""
+        
+        # Find largest sessions (most activity)
+        echo "🔝 Most active sessions:"
+        find "$SESSIONS_DIR" -name "*.jsonl" ! -name "*.deleted.*" ! -name "*.reset.*" -printf "%s %f\n" 2>/dev/null | \
+            sort -rn | head -5 | \
+            awk '{printf "  %s (%.1f KB)\n", $2, $1/1024}'
+        ;;
+        
+    search)
+        # Search session history for keywords
+        QUERY="$2"
+        if [ -z "$QUERY" ]; then
+            echo "Usage: glass-session search <keyword>"
+            exit 1
+        fi
+        
+        echo "🔍 Searching for: $QUERY"
+        echo ""
+        
+        grep -r -l "$QUERY" "$SESSIONS_DIR"/*.jsonl 2>/dev/null | head -10 | while read session; do
+            echo "Session: $(basename $session .jsonl)"
+            grep -o ".{0,50}${QUERY}.{0,50}" "$session" 2>/dev/null | head -3
+            echo "---"
+        done
+        ;;
+        
+    extract-milestones)
+        # Extract potential milestones from sessions
+        echo "🎯 Extracting milestones from recent sessions..."
+        echo ""
+        
+        find "$SESSIONS_DIR" -name "*.jsonl" -mtime -7 ! -name "*.deleted.*" ! -name "*.reset.*" 2>/dev/null | while read session; do
+            # Look for success patterns
+            SUCCESSES=$(jq -r 'select(.role == "assistant") | .content[0].text // empty' "$session" 2>/dev/null | \
+                grep -iE "(success|completed|✓|working|fixed|done|milestone)" | head -3)
+            
+            if [ -n "$SUCCESSES" ]; then
+                SESSION_NAME=$(basename $session .jsonl)
+                echo "Session: $SESSION_NAME"
+                echo "$SUCCESSES"
+                echo "---"
+            fi
+        done
+        ;;
+        
+    sync)
+        # Sync recent session insights to Glass-Box memory
+        echo "🔄 Syncing OpenClaw sessions to Glass-Box..."
+        
+        # Create today's memory file if needed
+        TODAY_MEM="$GLASS_DIR/../memory/$(date +%Y-%m-%d).md"
+        mkdir -p "$(dirname $TODAY_MEM)"
+        
+        # Extract key topics from today's sessions
+        TOPICS=$(find "$SESSIONS_DIR" -name "*.jsonl" -mtime -1 ! -name "*.deleted.*" ! -name "*.reset.*" \
+            -exec jq -r 'select(.role == "user") | .content[0].text // empty' {} \; 2>/dev/null | \
+            grep -oE '\b[a-zA-Z]{4,}\b' | \
+            sort | uniq -c | sort -rn | head -10)
+        
+        if [ -n "$TOPICS" ]; then
+            echo "" >> "$TODAY_MEM"
+            echo "## OpenClaw Topics ($(date +%H:%M))" >> "$TODAY_MEM"
+            echo "" >> "$TODAY_MEM"
+            echo '```' >> "$TODAY_MEM"
+            echo "$TOPICS" >> "$TODAY_MEM"
+            echo '```' >> "$TODAY_MEM"
+            echo "✅ Synced topics to $TODAY_MEM"
+        else
+            echo "No topics found today"
+        fi
+        ;;
+        
+    *)
+        echo "Glass-Box + OpenClaw Integration"
+        echo ""
+        echo "Usage:"
+        echo "  glass-session import           - Import recent session insights"
+        echo "  glass-session summary          - Show session statistics"
+        echo "  glass-session search <query>   - Search session history"
+        echo "  glass-session extract-milestones - Find successes in sessions"
+        echo "  glass-session sync             - Sync topics to Glass-Box memory"
+        ;;
+esac

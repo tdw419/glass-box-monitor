@@ -1,0 +1,77 @@
+#!/bin/bash
+# Unified query across Glass-Box memory + OpenClaw sessions
+
+QUERY="$1"
+GLASS_HYP=~/.openclaw/workspace/logs/glass-box-hypotheses.jsonl
+GLASS_DEC=~/.openclaw/workspace/logs/glass-box-decisions.jsonl
+OPENCLAW_SESSIONS=~/.openclaw/agents/main/sessions
+
+if [ -z "$QUERY" ]; then
+    echo "Usage: glass-query <keyword>"
+    echo ""
+    echo "Searches both Glass-Box memory and OpenClaw session history"
+    exit 1
+fi
+
+echo "🔍 Searching for: $QUERY"
+echo ""
+
+# 1. Search Glass-Box hypotheses
+echo "════════════════════════════════════════════════════════════"
+echo "🧪 GLASS-BOX HYPOTHESES"
+echo "════════════════════════════════════════════════════════════"
+if [ -f "$GLASS_HYP" ]; then
+    MATCHES=$(grep -i "$QUERY" "$GLASS_HYP" 2>/dev/null | tail -5)
+    if [ -n "$MATCHES" ]; then
+        echo "$MATCHES" | jq -r '"\(.ts | split("T")[1][:5]) [\(.type)] \(.msg)"' 2>/dev/null || echo "$MATCHES"
+    else
+        echo "  No matches"
+    fi
+else
+    echo "  No hypotheses file"
+fi
+echo ""
+
+# 2. Search Glass-Box decisions
+echo "════════════════════════════════════════════════════════════"
+echo "💡 GLASS-BOX DECISIONS"
+echo "════════════════════════════════════════════════════════════"
+if [ -f "$GLASS_DEC" ]; then
+    MATCHES=$(grep -i "$QUERY" "$GLASS_DEC" 2>/dev/null | tail -5)
+    if [ -n "$MATCHES" ]; then
+        echo "$MATCHES" | jq -r '"\(.ts | split("T")[1][:5]) DECISION: \(.decision)\n  REASON: \(.reason // "none")"' 2>/dev/null || echo "$MATCHES"
+    else
+        echo "  No matches"
+    fi
+else
+    echo "  No decisions file"
+fi
+echo ""
+
+# 3. Search OpenClaw sessions (if time permits)
+echo "════════════════════════════════════════════════════════════"
+echo "💬 OPENCLAW SESSIONS (recent)"
+echo "════════════════════════════════════════════════════════════"
+RECENT=$(find "$OPENCLAW_SESSIONS" -name "*.jsonl" -mmin -60 ! -name "*.deleted.*" ! -name "*.reset.*" 2>/dev/null | head -3)
+
+if [ -n "$RECENT" ]; then
+    for session in $RECENT; do
+        MATCHES=$(grep -i "$QUERY" "$session" 2>/dev/null | wc -l)
+        if [ "$MATCHES" -gt 0 ]; then
+            SIZE=$(ls -lh "$session" | awk '{print $5}')
+            echo "  $(basename $session .jsonl | cut -c1-36) ($SIZE, $MATCHES matches)"
+        fi
+    done | head -5
+else
+    echo "  No recent sessions"
+fi
+echo ""
+
+# 4. Summary
+echo "════════════════════════════════════════════════════════════"
+echo "📊 SUMMARY"
+echo "════════════════════════════════════════════════════════════"
+HYP_COUNT=$(grep -c -i "$QUERY" "$GLASS_HYP" 2>/dev/null || echo "0")
+DEC_COUNT=$(grep -c -i "$QUERY" "$GLASS_DEC" 2>/dev/null || echo "0")
+echo "  Hypotheses: $HYP_COUNT matches"
+echo "  Decisions: $DEC_COUNT matches"

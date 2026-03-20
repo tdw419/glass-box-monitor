@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""
+Glass-Box OpenClaw Integration
+Extract insights from OpenClaw sessions and sync to Glass-Box memory
+"""
+
+import json
+import sys
+from pathlib import Path
+from datetime import datetime
+import re
+
+SESSIONS_DIR = Path.home() / ".openclaw" / "agents" / "main" / "sessions"
+MEMORY_DIR = Path.home() / ".openclaw" / "workspace" / "logs"
+
+def extract_messages(session_file):
+    """Extract user/assistant messages from session"""
+    messages = []
+    try:
+        with open(session_file) as f:
+            for line in f:
+                try:
+                    event = json.loads(line)
+                    if event.get("type") == "message":
+                        msg = {
+                            "role": event.get("role"),
+                            "content": "",
+                            "timestamp": event.get("timestamp")
+                        }
+                        
+                        # Extract text content
+                        content = event.get("content", [])
+                        if isinstance(content, list):
+                            for item in content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    msg["content"] += item.get("text", "")
+                        elif isinstance(content, str):
+                            msg["content"] = content
+                        
+                        if msg["content"]:
+                            messages.append(msg)
+                except:
+                    continue
+    except Exception as e:
+        print(f"Error reading {session_file}: {e}", file=sys.stderr)
+    
+    return messages
+
+def extract_hypotheses(messages):
+    """Extract hypothesis-like statements from messages"""
+    hypotheses = []
+    
+    patterns = [
+        r'hypothesis[:\s]+(.{20,200})',
+        r'test[:\s]+(.{20,200})',
+        r'result[:\s]+(.{20,200})',
+        r'(?:I think|maybe|perhaps|probably)(.{20,200})',
+        r'(?:the issue is|the problem is)(.{20,200})',
+    ]
+    
+    for msg in messages:
+        if msg["role"] == "assistant":
+            content = msg["content"]
+            for pattern in patterns:
+                matches = re.findall(pattern, content, re.IGNORECASE)
+                for match in matches:
+                    hypotheses.append({
+                        "text": match.strip(),
+                        "timestamp": msg["timestamp"],
+                        "pattern": pattern[:20]
+                    })
+    
+    return hypotheses
+
+def extract_decisions(messages):
+    """Extract decision-like statements"""
+    decisions = []
+    
+    patterns = [
+        r'decision[:\s]+(.{20,200})',
+        r'(?:I will|I should|I need to)(.{20,200})',
+        r'(?:the best approach|the solution is)(.{20,200})',
+        r'(?:going to|planning to)(.{20,200})',
+    ]
+    
+    for msg in messages:
+        if msg["role"] == "assistant":
+            content = msg["content"]
+            for pattern in patterns:
+                matches = re.findall(pattern, content, re.IGNORECASE)
+                for match in matches:
+                    decisions.append({
+                        "text": match.strip(),
+                        "timestamp": msg["timestamp"],
+                        "pattern": pattern[:20]
+                    })
+    
+    return decisions
+
+def find_recent_sessions(hours=24):
+    """Find sessions from last N hours"""
+    import time
+    cutoff = time.time() - (hours * 3600)
+    
+    sessions = []
+    for session_file in SESSIONS_DIR.glob("*.jsonl"):
+        if session_file.suffix == ".jsonl" and "deleted" not in str(session_file):
+            if session_file.stat().st_mtime > cutoff:
+                sessions.append(session_file)
+    
+    return sorted(sessions, key=lambda x: x.stat().st_mtime, reverse=True)
+
+def sync_to_glassbox(hypotheses, decisions):
+    """Append extracted insights to Glass-Box memory"""
+    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+    
+    hyp_file = MEMORY_DIR / "glass-box-hypotheses.jsonl"
+    dec_file = MEMORY_DIR / "glass-box-decisions.jsonl"
+    
+    # Append hypotheses
+    with open(hyp_file, "a") as f:
+        for hyp in hypotheses:
+            entry = {
+                "ts": hyp["timestamp"],
+                "type": "extracted_hypothesis",
+                "msg": hyp["text"],
+                "source": "openclaw"
+            }
+            f.write(json.dumps(entry) + "\n")
+    
+    # Append decisions
+    with open(dec_file, "a") as f:
+        for dec in decisions:
+            entry = {
+                "ts": dec["timestamp"],
+                "type": "extracted_decision",
+                "decision": dec["text"],
+                "source": "openclaw"
+            }
+            f.write(json.dumps(entry) + "\n")
+    
+    return len(hypotheses), len(decisions)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: glass-openclaw <command>")
+        print("Commands:")
+        print("  sync        - Extract insights from recent sessions")
+        print("  extract     - Show extracted insights (dry run)")
+        print("  recent      - List recent sessions")
+        sys.exit(1)
+    
+    command = sys.argv[1]
+    
+    if command == "recent":
+        sessions = find_recent_sessions(24)
+        print(f"📋 Recent sessions (24h): {len(sessions)}")
+        for session in sessions[:10]:
+            size_kb = session.stat().st_size / 1024
+            print(f"  {session.name[:36]} ({size_kb:.1f} KB)")
+    
+    elif command == "extract":
+        sessions = find_recent_sessions(1)  # Last hour
+        print(f"🔍 Extracting from {len(sessions)} sessions...")
+        
+        all_hypotheses = []
+        all_decisions = []
+        
+        for session in sessions[:5]:  # Top 5 most recent
+            messages = extract_messages(session)
+            hypotheses = extract_hypotheses(messages)
+            decisions = extract_decisions(messages)
+            
+            all_hypotheses.extend(hypotheses)
+            all_decisions.extend(decisions)
+        
+        print(f"\n🧪 Hypotheses found: {len(all_hypotheses)}")
+        for hyp in all_hypotheses[:5]:
+            print(f"  - {hyp['text'][:80]}...")
+        
+        print(f"\n💡 Decisions found: {len(all_decisions)}")
+        for dec in all_decisions[:5]:
+            print(f"  - {dec['text'][:80]}...")
+    
+    elif command == "sync":
+        sessions = find_recent_sessions(1)
+        print(f"🔄 Syncing {len(sessions)} recent sessions...")
+        
+        all_hypotheses = []
+        all_decisions = []
+        
+        for session in sessions:
+            messages = extract_messages(session)
+            hypotheses = extract_hypotheses(messages)
+            decisions = extract_decisions(messages)
+            
+            all_hypotheses.extend(hypotheses)
+            all_decisions.extend(decisions)
+        
+        hyp_count, dec_count = sync_to_glassbox(all_hypotheses, all_decisions)
+        print(f"✅ Synced {hyp_count} hypotheses, {dec_count} decisions to Glass-Box")
+    
+    else:
+        print(f"Unknown command: {command}")
+
+if __name__ == "__main__":
+    main()

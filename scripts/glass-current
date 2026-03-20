@@ -1,0 +1,31 @@
+#!/bin/bash
+# Extract key insights from current OpenClaw session and save to Glass-Box
+
+SESSIONS_DIR="$HOME/.openclaw/agents/main/sessions"
+MEMORY_DIR="$HOME/.openclaw/workspace"
+
+# Find current session (most recent, largest)
+CURRENT_SESSION=$(find "$SESSIONS_DIR" -name "*.jsonl" -mmin -60 ! -name "*.deleted.*" ! -name "*.reset.*" -printf "%s %p\n" 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+if [ -z "$CURRENT_SESSION" ]; then
+    echo "No active session found"
+    exit 1
+fi
+
+echo "📋 Current session: $(basename $CURRENT_SESSION .jsonl)"
+echo ""
+
+# Extract hypotheses and decisions from current session
+echo "🧪 Extracting hypotheses..."
+jq -r 'select(.role == "assistant") | .content[0].text // empty' "$CURRENT_SESSION" 2>/dev/null | \
+    grep -iE "(hypothesis|test:|result:|decision:|reason:)" | head -20
+
+echo ""
+echo "💡 Extracting key decisions..."
+jq -r 'select(.role == "assistant") | .content[0].text // empty' "$CURRENT_SESSION" 2>/dev/null | \
+    grep -iE "(decision|because|should|need to|going to|plan)" | head -10
+
+echo ""
+echo "✅ Extracting successes..."
+jq -r 'select(.role == "assistant") | .content[0].text // empty' "$CURRENT_SESSION" 2>/dev/null | \
+    grep -iE "(success|✓|working|fixed|done|complete)" | head -10
