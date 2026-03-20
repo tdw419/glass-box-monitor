@@ -19,6 +19,17 @@ Glass Box:            Agent ↔ Logs ↔ Agent queries
 
 ## ✨ Core Capabilities
 
+### 0. LM Studio Integration (Fast Iteration) ⚡ NEW!
+```bash
+# Code generation (2-3s vs 10-15s cloud AI)
+lm-code "Generate RISC-V assembly to output 'OK' to UART" 500
+
+# Technical questions (2s)
+lm-ask "Why does wfi cause SIGILL in user mode?"
+```
+
+**5x faster iteration** with local AI (qwen/qwen3-coder-30b)
+
 ### 1. Hypothesis Tracking (Experimental Memory)
 Track what you tried, what worked, what failed:
 ```bash

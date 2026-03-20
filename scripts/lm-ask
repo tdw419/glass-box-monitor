@@ -1,0 +1,20 @@
+#!/bin/bash
+# LM Studio for quick questions/analysis
+# Usage: lm-ask "Why would wfi cause SIGILL in user mode?"
+
+PROMPT="$1"
+
+if [ -z "$PROMPT" ]; then
+    echo "Usage: lm-ask \"question\""
+    exit 1
+fi
+
+curl -s http://localhost:1234/v1/completions \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"model\": \"qwen/qwen3-coder-30b\",
+    \"prompt\": \"Question: ${PROMPT}\n\nAnswer:\",
+    \"max_tokens\": 1024,
+    \"temperature\": 0.5,
+    \"stream\": false
+  }" | jq -r '.choices[0].text'

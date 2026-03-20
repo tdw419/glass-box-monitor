@@ -1,0 +1,21 @@
+#!/bin/bash
+# Quick wrapper for LM Studio code generation
+# Usage: lm-code "Generate RISC-V assembly to output 'HELLO' to UART at 0x10000000"
+
+PROMPT="$1"
+MAX_TOKENS="${2:-2048}"
+
+if [ -z "$PROMPT" ]; then
+    echo "Usage: lm-code \"prompt\" [max_tokens]"
+    exit 1
+fi
+
+curl -s http://localhost:1234/v1/completions \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"model\": \"qwen/qwen3-coder-30b\",
+    \"prompt\": \"${PROMPT}\",
+    \"max_tokens\": ${MAX_TOKENS},
+    \"temperature\": 0.7,
+    \"stream\": false
+  }" | jq -r '.choices[0].text'
